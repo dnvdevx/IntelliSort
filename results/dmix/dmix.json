@@ -1,0 +1,110 @@
+{
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "total_files": 66,
+  "unprocessed_files": [
+    "spreadsheet.xlsx",
+    "random.pdf"
+  ],
+  "pdf_report": [
+    {
+      "name": "16-Sets.pdf",
+      "type": "digital",
+      "has_text": true,
+      "ground_truth": "dev"
+    },
+    {
+      "name": "BACSE105_DATA-STRUCTURES-AND-ALGORITHMS_ETH_1.0_80_BACSE105_DATA-STRUCTURES-AND-ALGORITHMS_ELA_1.0_84_BACSE105.pdf",
+      "type": "digital",
+      "has_text": true,
+      "ground_truth": "dev"
+    },
+    {
+      "name": "Exp6_Triple Integrals matlab -new (1) (3).pdf",
+      "type": "digital",
+      "has_text": true,
+      "ground_truth": "maths"
+    },
+    {
+      "name": "Module 2-Scope.pdf",
+      "type": "digital",
+      "has_text": true,
+      "ground_truth": "maths"
+    },
+    {
+      "name": "Module_2_Tutorial_Sheet_02.pdf",
+      "type": "digital",
+      "has_text": true,
+      "ground_truth": "maths"
+    },
+    {
+      "name": "random.pdf",
+      "type": "scanned",
+      "has_text": false,
+      "ground_truth": "unknown"
+    }
+  ],
+  "pdf_placement": [
+    {
+      "filename": "16-Sets.pdf",
+      "ground_truth": "dev",
+      "cluster_id": 3,
+      "cluster_label": "dev_c3",
+      "majority_matched": true
+    },
+    {
+      "filename": "BACSE105_DATA-STRUCTURES-AND-ALGORITHMS_ETH_1.0_80_BACSE105_DATA-STRUCTURES-AND-ALGORITHMS_ELA_1.0_84_BACSE105.pdf",
+      "ground_truth": "dev",
+      "cluster_id": 3,
+      "cluster_label": "dev_c3",
+      "majority_matched": true
+    },
+    {
+      "filename": "Exp6_Triple Integrals matlab -new (1) (3).pdf",
+      "ground_truth": "maths",
+      "cluster_id": 10,
+      "cluster_label": "maths_c10",
+      "majority_matched": true
+    },
+    {
+      "filename": "Module 2-Scope.pdf",
+      "ground_truth": "maths",
+      "cluster_id": 10,
+      "cluster_label": "maths_c10",
+      "majority_matched": true
+    },
+    {
+      "filename": "Module_2_Tutorial_Sheet_02.pdf",
+      "ground_truth": "maths",
+      "cluster_id": 10,
+      "cluster_label": "maths_c10",
+      "majority_matched": true
+    },
+    {
+      "filename": "random.pdf",
+      "ground_truth": "unknown",
+      "cluster_id": -1,
+      "cluster_label": "_not_processed",
+      "majority_matched": false
+    }
+  ],
+  "ari_all": 0.8095054839330383,
+  "timing": {
+    "scan_cold_s": 0.008946899964939803,
+    "scan_warm_s": 0.008628999989014119,
+    "extract_cold_s": 0.17381590005243197,
+    "extract_warm_s": 0.17752650001784787,
+    "embed_cold_s": 18.815415799967013,
+    "embed_warm_s": 10.52383220003685,
+    "cluster_s": 0.6630422999733128
+  },
+  "unprocessed": [
+    [
+      "spreadsheet.xlsx",
+      "unsupported file type (.xlsx)"
+    ],
+    [
+      "random.pdf",
+      "text extraction failed: OCR failed (TesseractNotFoundError: tesseract is not installed or it's not in your PATH. See README file for more information.)"
+    ]
+  ]
+}

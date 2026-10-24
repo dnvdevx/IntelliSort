@@ -63,13 +63,14 @@ def organize_files(file_nodes, dest_dir, group_type, log_fn=None, move=False):
     return {"total_files": total_copied, "groups_created": groups_created, "errors": total_errors}
 
 
-def group_similar_by_combined(file_nodes, dest_dir, log_fn=None, cancel_event=None, move=False):
+def group_similar_by_combined(file_nodes, dest_dir, log_fn=None, cancel_event=None, move=False, cross_modal=False):
     _log = log_fn or print
     verb = "Moving" if move else "Copying"
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     grouper = FileGrouper()
+    grouper.cross_modal = cross_modal
     grouper.group_by_combined(file_nodes)
     combined = grouper.group.get("combined", {})
 
@@ -83,5 +84,15 @@ def group_similar_by_combined(file_nodes, dest_dir, log_fn=None, cancel_event=No
         _log(f"  - {verb} similarity group: {group_name} ({len(file_set)} files)")
         stats = copy_files_to_folder(file_set, group_folder, log_fn=log_fn, move=move)
         stats_map[str(group_name)] = stats
+    already_placed = {n for file_set in combined.values() for n in file_set}
+    skipped = [(n, why) for n, why in grouper.unprocessed if n not in already_placed]
+    if skipped:
+        _log(f"{len(skipped)} file(s) could not be processed and were NOT clustered:")
+        for node, why in skipped:
+            _log(f"  ! {node.filename}: {why}")
+        skipped_folder = dest_dir / "_not_processed"
+        skipped_folder.mkdir(parents=True, exist_ok=True)
+        _log(f"  - {verb} not-processed files: _not_processed ({len(skipped)} files)")
+        stats_map["_not_processed"] = copy_files_to_folder({n for n, _ in skipped}, skipped_folder, log_fn=log_fn, move=move)
 
     return combined, stats_map

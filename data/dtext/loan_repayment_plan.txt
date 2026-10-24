@@ -1,0 +1,6 @@
+Education Loan Repayment Plan
+
+Outstanding loan amount: 4.5 lakhs at 8.5% interest. Current EMI is 12000
+per month over a remaining tenure of 40 months. Considering a partial
+prepayment of 1 lakh next quarter to reduce total interest paid and
+shorten the repayment period by approximately 6 months.

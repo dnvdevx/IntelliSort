@@ -1,0 +1,6 @@
+Python Programming Tips
+
+List comprehensions provide a concise way to create lists. Use enumerate()
+instead of manually tracking indices in loops. Context managers (the with
+statement) ensure resources like files are properly closed. f-strings offer
+readable string formatting compared to older % or .format() methods.

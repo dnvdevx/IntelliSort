@@ -1,0 +1,6 @@
+Useful Git Commands
+
+git status shows the current state of the working directory. git add
+stages changes for commit. git commit -m "message" records staged changes.
+git branch lists branches, and git checkout -b creates and switches to a
+new branch. git merge combines changes from one branch into another.

@@ -12,6 +12,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 SIZE_TINY = 1_000_000
 SIZE_SMALL = 10_000_000
 SIZE_MEDIUM = 100_000_000
+SUPPORTED_TEXT_EXTENSIONS = frozenset({".txt", ".docx", ".pdf"})
 
 
 def extract_text(filepath):
@@ -27,16 +28,25 @@ def extract_text(filepath):
 
     elif ext == ".pdf":
         doc = fitz.open(filepath)
-        text = ""
-        for page in doc:
-            extracted = page.get_text()
-            if extracted.strip():
-                text += extracted
-            else:
-                pix = page.get_pixmap()
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                text += pytesseract.image_to_string(img)
-        doc.close()
+        parts = []
+        ocr_error = None
+        try:
+            for page in doc:
+                extracted = page.get_text()
+                if extracted.strip():
+                    parts.append(extracted)
+                else:
+                    try:
+                        pix = page.get_pixmap()
+                        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                        parts.append(pytesseract.image_to_string(img))
+                    except Exception as e:
+                        ocr_error = e
+        finally:
+            doc.close()
+        text = "".join(parts)
+        if not text.strip() and ocr_error is not None:
+            raise RuntimeError(f"OCR failed ({type(ocr_error).__name__}: {ocr_error})")
         return text
 
     elif ext in [".png", ".jpg", ".jpeg"]:

@@ -1,0 +1,6 @@
+Unsupervised Learning Overview
+
+Unsupervised learning works with unlabeled data, where the model finds
+patterns or structure on its own. Clustering algorithms like K-Means group
+similar data points based on distance metrics. Dimensionality reduction
+techniques such as PCA help visualize high-dimensional data.

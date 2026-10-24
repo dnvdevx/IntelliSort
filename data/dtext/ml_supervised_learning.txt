@@ -1,0 +1,6 @@
+Supervised Learning Overview
+
+Supervised learning involves training a model on labeled data, where each
+training example has an input and a known correct output. Common tasks
+include classification and regression. The model learns a mapping function
+by minimizing a loss function using gradient descent or its variants.

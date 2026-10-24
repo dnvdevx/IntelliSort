@@ -1,0 +1,6 @@
+SQL Joins Explained
+
+INNER JOIN returns rows with matching values in both tables. LEFT JOIN
+returns all rows from the left table plus matched rows from the right,
+filling unmatched columns with NULL. RIGHT JOIN does the opposite. FULL
+OUTER JOIN returns all rows from both tables, matched or not.

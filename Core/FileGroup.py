@@ -10,15 +10,17 @@ from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from file_node import FileNode, extract_text, SIZE_TINY, SIZE_SMALL, SIZE_MEDIUM
+from file_node import FileNode, extract_text, SIZE_TINY, SIZE_SMALL, SIZE_MEDIUM, SUPPORTED_TEXT_EXTENSIONS
 
 NAME_SIMILARITY_THRESHOLD = 0.80
 COMBINED_ALPHA = 0.35
 COMBINED_BETA = 0.65
-assert abs(COMBINED_ALPHA + COMBINED_BETA - 1.0) < 1e-9, (
-    f"COMBINED_ALPHA + COMBINED_BETA must equal 1.0, got {COMBINED_ALPHA + COMBINED_BETA}"
-)
-
+assert abs(COMBINED_ALPHA + COMBINED_BETA - 1.0) < 1e-9, (f"COMBINED_ALPHA + COMBINED_BETA must equal 1.0, got {COMBINED_ALPHA + COMBINED_BETA}")
+CHUNK_TOKENS = 250
+MAX_CHUNKS_PER_FILE = 16
+KMEANS_N_INIT = 100
+CLIP_CHUNK_WORDS = 35
+LINK_Z = 2.0
 
 class FileGrouper:
     def __init__(self):
@@ -27,6 +29,11 @@ class FileGrouper:
         self.model = None
         self._clip_model = None
         self._clip_processor = None
+        self.unprocessed = []
+        self.cross_modal = False
+        self.link_modalities = False
+        self._texts = {}
+        self._clip_text_cache = {}
 
     def _get_model(self):
         if self.model is None:
@@ -58,12 +65,89 @@ class FileGrouper:
         inputs = processor(images=img, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         with torch.no_grad():
-            vision_outputs = model.vision_model(**inputs, output_attentions=False, output_hidden_states=False, return_dict=True)
-            # last_hidden_state[:, 0] is the CLS token, same as pooler_output in older versions
-            cls_token = vision_outputs.last_hidden_state[:, 0, :]
-            features = model.visual_projection(cls_token)
+            vision_outputs = model.vision_model(pixel_values=inputs["pixel_values"], return_dict=True)
+            pooled = vision_outputs.pooler_output
+            features = model.visual_projection(pooled)
         features = torch.nn.functional.normalize(features, p=2, dim=-1)
         return features.squeeze(0).cpu().numpy()
+
+    def _encode_texts_clip(self, texts):
+        model, processor = self._get_clip()
+        tok = processor.tokenizer
+        out = []
+        with torch.no_grad():
+            for t in texts:
+                words = t.split()
+                chunks = [" ".join(words[i:i + CLIP_CHUNK_WORDS]) for i in range(0, len(words), CLIP_CHUNK_WORDS)]
+                chunks = chunks[:MAX_CHUNKS_PER_FILE] or [""]
+                enc = tok(chunks, padding=True, truncation=True, max_length=77, return_tensors="pt")
+                enc = {k: v.to(self.device) for k, v in enc.items()}
+                o = model.text_model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"], return_dict=True)
+                f = model.text_projection(o.pooler_output)
+                f = torch.nn.functional.normalize(f, p=2, dim=-1).mean(dim=0)
+                f = torch.nn.functional.normalize(f, p=2, dim=-1)
+                out.append(f.cpu().numpy())
+        return np.array(out, dtype=np.float32)
+
+    def _center(self, rows):
+        m = np.array(rows, dtype=np.float32)
+        m = m - m.mean(axis=0, keepdims=True)
+        m = m / np.maximum(np.linalg.norm(m, axis=1, keepdims=True), 1e-12)
+        return list(m)
+
+    def _clip_text_vectors(self, nodes):
+        missing = [n for n in nodes if n not in self._clip_text_cache]
+        if missing:
+            vecs = self._encode_texts_clip([self._texts[n] for n in missing])
+            for n, v in zip(missing, vecs):
+                self._clip_text_cache[n] = v
+        return np.array([self._clip_text_cache[n] for n in nodes], dtype=np.float32)
+
+    def _link_clusters(self, t_lab, i_lab, t_clip, i_vec, z=LINK_Z):
+        self.last_link_scores = []
+        t_ids = sorted(set(t_lab.tolist()))
+        i_ids = sorted(set(i_lab.tolist()))
+        if not t_ids or not i_ids:
+            return []
+        cos = t_clip @ i_vec.T
+        mu = cos.mean()
+        sigma = cos.std()
+        if sigma == 0:
+            return []
+        block = np.array([[cos[t_lab == a][:, i_lab == b].mean() for b in i_ids] for a in t_ids])
+        score = (block - mu) / sigma
+        links = []
+        for r in range(len(t_ids)):
+            c = int(np.argmax(block[r]))
+            if int(np.argmax(block[:, c])) != r:
+                continue
+            self.last_link_scores.append((t_ids[r], i_ids[c], float(score[r, c])))
+            if score[r, c] > z:
+                links.append((t_ids[r], i_ids[c]))
+        return links
+
+    def _cluster_linked(self, embeddings_np, ordered_nodes, seed=42, z=LINK_Z):
+        is_img = np.array([self._is_image(n) for n in ordered_nodes])
+        t_idx = np.where(~is_img)[0]
+        i_idx = np.where(is_img)[0]
+
+        def run_kmeans(X):
+            k = max(1, min(len(X) // 5, 500))
+            if k < 2:
+                return np.zeros(len(X), dtype=int)
+            return KMeans(n_clusters=k, random_state=seed, n_init=KMEANS_N_INIT).fit_predict(X)
+
+        t_lab = run_kmeans(embeddings_np[t_idx])
+        i_lab = run_kmeans(embeddings_np[i_idx]) + t_lab.max() + 1
+        labels = np.zeros(len(ordered_nodes), dtype=int)
+        labels[t_idx] = t_lab
+        labels[i_idx] = i_lab
+
+        t_clip = self._clip_text_vectors([ordered_nodes[i] for i in t_idx])
+        links = self._link_clusters(t_lab, i_lab, t_clip, embeddings_np[i_idx], z)
+        for a, b in links:
+            labels[labels == b] = a
+        return labels, links
 
     def _is_image(self, node):
         return node.extension in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
@@ -144,36 +228,85 @@ class FileGrouper:
                 groups[matched_key].add(node)
         self.group['name'] = groups
 
-    def _build_embeddings(self, nodes):
-        TARGET_DIM = 512
+    def _encode_texts(self, texts):
+        model = self._get_model()
+        tokenizer = model.tokenizer
+        window = max(8, min(CHUNK_TOKENS, getattr(model, "max_seq_length", 256) - 2))
 
+        chunks, owner, weight = [], [], []
+        for i, text in enumerate(texts):
+            ids = tokenizer(text, add_special_tokens=False, truncation=False,
+                            verbose=False)["input_ids"]
+            if len(ids) <= window:
+                chunks.append(text)
+                owner.append(i)
+                weight.append(max(len(ids), 1))
+                continue
+            for start in range(0, min(len(ids), window * MAX_CHUNKS_PER_FILE), window):
+                piece = ids[start:start + window]
+                chunks.append(tokenizer.decode(piece))
+                owner.append(i)
+                weight.append(len(piece))
+
+        emb = np.asarray(model.encode(
+            chunks,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            device=self.device,
+            show_progress_bar=True,
+        ), dtype=np.float32)
+
+        out = np.zeros((len(texts), emb.shape[1]), dtype=np.float32)
+        for vec, o, w in zip(emb, owner, weight):
+            out[o] += w * vec
+        norms = np.linalg.norm(out, axis=1, keepdims=True)
+        return out / np.maximum(norms, 1e-12)
+
+    def _build_embeddings(self, nodes):
+
+        TARGET_DIM = 512
+        unprocessed = []
+ 
         image_nodes = [n for n in nodes if self._is_image(n)]
         text_nodes  = [n for n in nodes if not self._is_image(n)]
-
+        use_clip_text = self.cross_modal and len(image_nodes) > 0
+ 
         text_embeddings_np = {}
         if text_nodes:
-            texts = []
+            usable, texts = [], []
             for node in text_nodes:
+                if node.extension not in SUPPORTED_TEXT_EXTENSIONS:
+                    unprocessed.append((node, f"unsupported file type ({node.extension or 'no extension'})"))
+                    continue
                 try:
                     text = extract_text(node.path)
-                    texts.append(text if text.strip() else " ")
                 except Exception as e:
-                    print(f"Error extracting text from {node.filename}: {e}")
-                    texts.append(" ")
-            try:
-                raw = self._get_model().encode(
-                    texts,
-                    convert_to_tensor=False,
-                    device=self.device,
-                    show_progress_bar=True,
-                )
-                for node, vec in zip(text_nodes, raw):
-                    padded = np.zeros(TARGET_DIM, dtype=np.float32)
-                    padded[:len(vec)] = vec
-                    text_embeddings_np[node] = padded
-            except Exception as e:
-                print(f"Error building text embeddings: {e}")
-
+                    unprocessed.append((node, f"text extraction failed: {e}"))
+                    continue
+                if not text.strip():
+                    unprocessed.append((node, "no extractable text"))
+                    continue
+                usable.append(node)
+                texts.append(text)
+                self._texts[node] = text
+ 
+            if usable:
+                try:
+                    if use_clip_text:
+                        raw = self._encode_texts_clip(texts)
+                        for node, vec in zip(usable, raw):
+                            text_embeddings_np[node] = vec
+                    else:
+                        raw = self._encode_texts(texts)
+                        for node, vec in zip(usable, raw):
+                            padded = np.zeros(TARGET_DIM, dtype=np.float32)
+                            padded[:len(vec)] = vec
+                            text_embeddings_np[node] = padded
+                except Exception as e:
+                    print(f"Error building text embeddings: {e}")
+                    for node in usable:
+                        unprocessed.append((node, f"text embedding failed: {e}"))
+ 
         image_embeddings_np = {}
         for node in image_nodes:
             try:
@@ -181,31 +314,37 @@ class FileGrouper:
                 image_embeddings_np[node] = vec.astype(np.float32)
             except Exception as e:
                 print(f"Could not embed image {node.filename}: {e}")
+                unprocessed.append((node, f"image embedding failed: {e}"))
 
+        if use_clip_text and text_embeddings_np and image_embeddings_np:
+            tk = list(text_embeddings_np.keys())
+            for node, vec in zip(tk, self._center([text_embeddings_np[n] for n in tk])):
+                text_embeddings_np[node] = vec
+            ik = list(image_embeddings_np.keys())
+            for node, vec in zip(ik, self._center([image_embeddings_np[n] for n in ik])):
+                image_embeddings_np[node] = vec
+ 
         ordered_nodes = []
         all_embeddings = []
-
         for node in text_nodes:
-            ordered_nodes.append(node)
-            all_embeddings.append(
-                text_embeddings_np.get(node, np.zeros(TARGET_DIM, dtype=np.float32))
-            )
-
+            if node in text_embeddings_np:
+                ordered_nodes.append(node)
+                all_embeddings.append(text_embeddings_np[node])
         for node in image_nodes:
-            ordered_nodes.append(node)
-            all_embeddings.append(
-                image_embeddings_np.get(node, np.zeros(TARGET_DIM, dtype=np.float32))
-            )
-
+            if node in image_embeddings_np:
+                ordered_nodes.append(node)
+                all_embeddings.append(image_embeddings_np[node])
+ 
         if not ordered_nodes:
-            return None, nodes
-
-        return np.array(all_embeddings, dtype=np.float32), ordered_nodes
-
+            return None, [], unprocessed
+ 
+        return np.array(all_embeddings, dtype=np.float32), ordered_nodes, unprocessed
+ 
     def group_by_combined(self, file_nodes):
-        nodes = list(file_nodes)
+        nodes = sorted(file_nodes, key=lambda n: n.path)
 
-        embeddings_np, ordered_nodes = self._build_embeddings(nodes)
+        embeddings_np, ordered_nodes, unprocessed = self._build_embeddings(nodes)
+        self.unprocessed = unprocessed
 
         if embeddings_np is None or len(ordered_nodes) < 2:
             self.group['combined'] = {"ungrouped": set(nodes)}
@@ -218,13 +357,23 @@ class FileGrouper:
             self.group['combined'] = self.group.get('name', {"ungrouped": set(nodes)})
             return
 
+        has_text = any(not self._is_image(n) for n in ordered_nodes)
+        has_img = any(self._is_image(n) for n in ordered_nodes)
+        use_links = self.link_modalities and not self.cross_modal and has_text and has_img
+
         n_clusters = max(2, min(len(ordered_nodes) // 5, 500))
+        kmeans = None
         try:
-            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
-            labels = kmeans.fit_predict(embeddings_np)
+            if use_links:
+                labels, links = self._cluster_linked(embeddings_np, ordered_nodes)
+                print(f"Linked {len(links)} text group(s) with image group(s)")
+            else:
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=KMEANS_N_INIT)
+                labels = kmeans.fit_predict(embeddings_np)
         except Exception as e:
-            print(f"KMeans clustering failed: {e}")
+            print(f"Clustering failed: {e}")
             labels = [0] * len(ordered_nodes)
+            kmeans = None
 
         raw_groups = defaultdict(list)
         for node, label in zip(ordered_nodes, labels):
@@ -234,7 +383,7 @@ class FileGrouper:
         for label, group_nodes in raw_groups.items():
             cluster_indices = [ordered_nodes.index(n) for n in group_nodes]
             cluster_embeddings = embeddings_np[cluster_indices]
-            center = kmeans.cluster_centers_[label]
+            center = kmeans.cluster_centers_[label] if kmeans is not None else cluster_embeddings.mean(axis=0)
             distances = np.linalg.norm(cluster_embeddings - center, axis=1)
             closest_idx = cluster_indices[np.argmin(distances)]
             representative = ordered_nodes[closest_idx]

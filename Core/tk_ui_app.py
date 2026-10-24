@@ -20,7 +20,7 @@ from utility import copy_files_to_folder, organize_files, group_similar_by_combi
 class FileOrganizerApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("File Organizer (GUI)")
+        self.title("IntelliSort")
         self.geometry("860x600")
 
         self._work_queue = queue.Queue()

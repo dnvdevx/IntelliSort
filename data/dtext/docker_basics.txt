@@ -1,0 +1,6 @@
+Docker Basics
+
+A Dockerfile defines the steps to build a container image. docker build
+creates an image from a Dockerfile. docker run starts a container from an
+image. Containers are isolated, lightweight, and share the host OS kernel,
+making them faster to start than full virtual machines.

@@ -33,12 +33,12 @@ class FileScanner:
             self.errors.append(str(path))
 
     def file_data(self):
-        file_data_list = set()
+        file_data_list = []
         skipped = 0
-        for file in self.files:
+        for file in sorted(self.files, key=str):
             try:
                 node = FileNode(file)
-                file_data_list.add(node)
+                file_data_list.append(node)
             except Exception as e:
                 print(f"Skipping {file.name}: {e}")
                 skipped += 1

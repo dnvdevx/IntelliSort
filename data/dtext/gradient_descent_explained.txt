@@ -1,0 +1,7 @@
+Gradient Descent Explained
+
+Gradient descent is an optimization algorithm used to minimize a loss
+function by iteratively moving parameters in the direction of steepest
+descent. Learning rate controls the step size. Variants include stochastic
+gradient descent, momentum, and Adam, each with different convergence
+properties.

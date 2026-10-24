@@ -1,0 +1,6 @@
+Debugging Checklist
+
+Reproduce the bug consistently before attempting a fix. Check recent
+changes via git diff or git log. Add print statements or use a debugger to
+inspect variable state at key points. Isolate the issue by commenting out
+sections of code. Always write a regression test once the bug is fixed.

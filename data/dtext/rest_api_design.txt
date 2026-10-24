@@ -1,0 +1,6 @@
+REST API Design Principles
+
+Use nouns, not verbs, in endpoint paths, e.g. /users instead of /getUsers.
+Leverage HTTP methods correctly: GET for retrieval, POST for creation, PUT
+for updates, DELETE for removal. Return appropriate status codes like 200,
+201, 404, and 500. Version your API to avoid breaking existing clients.

@@ -1,0 +1,6 @@
+Convolutional Neural Networks
+
+CNNs use convolutional layers with learnable filters to detect spatial
+patterns like edges and textures in images. Pooling layers reduce spatial
+dimensions while retaining important features. CNNs are widely used for
+image classification, object detection, and segmentation tasks.

@@ -1,0 +1,6 @@
+Quarterly Expense Report - Q1
+
+This report summarizes departmental spending for Q1. Office supplies
+accounted for 12% of the budget, travel expenses 28%, software licenses
+18%, and miscellaneous overhead 42%. Travel expenses exceeded projections
+due to two unplanned client visits in February.

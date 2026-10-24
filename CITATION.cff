@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper."
+title: "IntelliSort"
+type: software
+authors:
+  - family-names: Varkey
+    given-names: Dani Noble
+  - family-names: P. N.
+    given-names: Jeipratha
+version: v1-fixed
+license: MIT
+preferred-citation:
+  type: article
+  title: "IntelliSort: Design and Empirical Evaluation of a Multi-Modal Semantic File Organization System Using Sentence Transformers and CLIP"
+  authors:
+    - family-names: Varkey
+      given-names: Dani Noble
+    - family-names: P. N.
+      given-names: Jeipratha
+  journal: "Frontiers in Artificial Intelligence"
+  year: 2026

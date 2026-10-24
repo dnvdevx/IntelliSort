@@ -1,0 +1,7 @@
+Introduction to Neural Networks
+
+A neural network consists of layers of interconnected neurons, each
+applying a weighted sum followed by a non-linear activation function.
+Backpropagation computes gradients and updates weights during training.
+Deep networks with many hidden layers learn increasingly abstract
+representations of input data.

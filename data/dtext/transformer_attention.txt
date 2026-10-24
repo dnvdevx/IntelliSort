@@ -1,0 +1,6 @@
+The Transformer Architecture
+
+Transformers rely on self-attention mechanisms to weigh the importance of
+different tokens in a sequence relative to each other. Unlike RNNs,
+transformers process sequences in parallel rather than step by step,
+enabling much faster training on large datasets like text corpora.
